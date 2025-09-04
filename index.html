@@ -274,7 +274,7 @@
           </div>
       );
 
-      const AddReadingModal = ({ isOpen, onClose, onAdd, lastReading }) => {
+      const AddReadingModal = ({ isOpen, onClose, onAdd, currentRange }) => {
         const [date, setDate] = useState('');
         const [oldRange, setOldRange] = useState('');
         const [amountSpent, setAmountSpent] = useState('');
@@ -287,12 +287,12 @@
             today.setMinutes(today.getMinutes() - today.getTimezoneOffset());
             setDate(today.toISOString().split('T')[0]);
             
-            setOldRange(lastReading ? lastReading.newRange.toString() : '0');
+            setOldRange(currentRange > 0 ? Math.round(currentRange).toString() : '0');
             setAmountSpent('');
             setNewRange('');
             setErrors({});
           }
-        }, [isOpen, lastReading]);
+        }, [isOpen, currentRange]);
 
         if (!isOpen) return null;
 
@@ -394,8 +394,12 @@
         const formattedDate = date.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
         const costPerLiter = reading.litersLoaded > 0 ? reading.amountSpent / reading.litersLoaded : 0;
         
-        const displayEfficiency = efficiency > 0 && unit === 'l/100km' ? (100 / efficiency).toFixed(1) : efficiency.toFixed(1);
-        const displayUnit = unit === 'l/100km' ? 'l/100km' : 'km/l';
+        let displayEfficiency = null;
+        let displayUnit = null;
+        if (efficiency !== null) {
+            displayEfficiency = efficiency > 0 && unit === 'l/100km' ? (100 / efficiency).toFixed(1) : efficiency.toFixed(1);
+            displayUnit = unit === 'l/100km' ? 'l/100km' : 'km/l';
+        }
 
         return (
           <div className="relative pl-8 sm:pl-10 py-4">
@@ -410,7 +414,7 @@
               </div>
               <div className="grid grid-cols-2 gap-2 text-sm text-gray-300">
                 <p>Liters Est: <span className="font-medium text-white">{reading.litersLoaded.toFixed(2)} L</span></p>
-                <p>Cost/Liter Est: <span className="font-medium text-white">R {costPerLiter.toFixed(2)}</span></p>
+                <p>Cost/Liter Est: <span className="font-medium text-white">{costPerLiter.toFixed(2)}</span></p>
                 <p>Range Before: <span className="font-medium text-white">{reading.oldRange.toFixed(0)} km</span></p>
                 <p>Range After: <span className="font-medium text-white">{reading.newRange.toFixed(0)} km</span></p>
                 {kmDriven !== null && efficiency !== null && (
@@ -489,7 +493,25 @@
         useEffect(() => {
           try {
             const storedReadings = localStorage.getItem('fuelReadings');
-            if (storedReadings) setReadings(JSON.parse(storedReadings));
+            if (storedReadings) {
+                const parsed = JSON.parse(storedReadings);
+                if (Array.isArray(parsed)) {
+                    const sanitizedReadings = parsed
+                      .filter(r => r && typeof r === 'object' && r.date)
+                      .map(r => ({
+                        id: r.id || new Date(r.date).toISOString(),
+                        date: r.date,
+                        oldRange: Number(r.oldRange) || 0,
+                        amountSpent: Number(r.amountSpent) || 0,
+                        newRange: Number(r.newRange) || 0,
+                        litersLoaded: Number(r.litersLoaded) || 0,
+                      }))
+                      .filter(r => !isNaN(new Date(r.date).getTime()));
+                    setReadings(sanitizedReadings);
+                } else {
+                    localStorage.removeItem('fuelReadings');
+                }
+            }
             
             const storedEfficiency = localStorage.getItem('fuelEfficiency');
             if(storedEfficiency) setFuelEfficiency(storedEfficiency);
@@ -498,6 +520,8 @@
             if(storedUnit) setEfficiencyUnit(storedUnit);
           } catch (error) {
             console.error("Failed to load or parse data from localStorage", error);
+            localStorage.removeItem('fuelReadings');
+            setReadings([]);
           }
         }, []);
 
@@ -520,12 +544,24 @@
         }, [readings, sortOrder]);
 
         const metrics = useMemo(() => {
-          if (readings.length < 2) {
-            const latestReadingRange = readings.length === 1 ? readings[0].newRange : 0;
-            return { dailyCost: 0, dailyUsage: 0, costPerKm: 0, monthlyCost: 0, estimatedDaysLeft: Infinity, calculatedCurrentRange: latestReadingRange };
+          if (readings.length === 0) {
+            return { dailyCost: 0, dailyUsage: 0, costPerKm: 0, monthlyCost: 0, estimatedDaysLeft: Infinity, calculatedCurrentRange: 0 };
           }
         
           const chronoSorted = [...readings].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+          const latestReading = chronoSorted[chronoSorted.length-1];
+
+          if (readings.length < 2) {
+            return { 
+                dailyCost: 0, 
+                dailyUsage: 0, 
+                costPerKm: 0, 
+                monthlyCost: 0, 
+                estimatedDaysLeft: Infinity, 
+                calculatedCurrentRange: latestReading.newRange 
+            };
+          }
+
           let totalKMDriven = 0;
           let totalDaysForConsumption = 0;
 
@@ -547,7 +583,6 @@
           const dailyCost = dailyUsage * costPerKm;
           const monthlyCost = dailyCost * 30.44;
 
-          const latestReading = chronoSorted[chronoSorted.length-1];
           const daysSinceLastReading = (new Date().getTime() - new Date(latestReading.date).getTime()) / (1000 * 3600 * 24);
           const calculatedCurrentRange = Math.max(0, latestReading.newRange - (dailyUsage * daysSinceLastReading));
           const estimatedDaysLeft = dailyUsage > 0 ? calculatedCurrentRange / dailyUsage : Infinity;
@@ -687,7 +722,7 @@
               isOpen={isModalOpen}
               onClose={() => setIsModalOpen(false)}
               onAdd={handleAddReading}
-              lastReading={sortedReadings[0]}
+              currentRange={metrics.calculatedCurrentRange}
             />
             <ConfirmModal
               isOpen={isConfirmModalOpen}
