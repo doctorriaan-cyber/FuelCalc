@@ -146,6 +146,12 @@
           </svg>
       );
 
+      const WrenchIcon = (props) => (
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+            <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path>
+          </svg>
+      );
+
       // =============================================
       // COMPONENTS/CONFIRMMODAL.TSX
       // =============================================
@@ -191,7 +197,7 @@
       // =============================================
       // COMPONENTS/METRICSDASHBOARD.TSX
       // =============================================
-      const MetricCard = ({ icon, title, value, unit, color }) => (
+      const MetricCard = ({ icon, title, value, unit, subtitle, color }) => (
         <div className="bg-gray-800 p-4 rounded-xl flex items-center gap-4 shadow-lg border border-gray-700">
           <div className={`p-3 rounded-full ${color}`}>
             {icon}
@@ -201,13 +207,14 @@
             <p className="text-xl font-bold text-white">
               {value} <span className="text-base font-normal text-gray-300">{unit}</span>
             </p>
+            {subtitle && <p className="text-xs text-gray-500 mt-1">{subtitle}</p>}
           </div>
         </div>
       );
 
       const MetricsDashboard = ({ metrics }) => {
         return (
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
             <MetricCard 
               icon={<GaugeIcon className="w-6 h-6 text-white"/>} 
               title="Current Range" 
@@ -224,10 +231,25 @@
             />
             <MetricCard 
               icon={<RoadIcon className="w-6 h-6 text-white"/>} 
-              title="Daily Usage" 
+              title="Daily distance" 
               value={metrics.dailyUsage.toFixed(1)} 
               unit="km"
               color="bg-blue-500/80"
+            />
+            <MetricCard 
+              icon={<WrenchIcon className="w-6 h-6 text-white"/>}
+              title="Next Service In" 
+              value={isFinite(metrics.daysUntilService) ? Math.floor(metrics.daysUntilService).toString() : '∞'} 
+              unit="days"
+              subtitle={metrics.nextServiceOdometer > 0 ? `at ${metrics.nextServiceOdometer.toFixed(0)} km` : ''}
+              color="bg-gray-500/80"
+            />
+            <MetricCard 
+              icon={<CalendarIcon className="w-6 h-6 text-white"/>} 
+              title="Monthly Cost" 
+              value={`R ${metrics.monthlyCost.toFixed(2)}`} 
+              unit="est."
+              color="bg-indigo-500/80"
             />
             <MetricCard 
               icon={<DollarSignIcon className="w-6 h-6 text-white"/>} 
@@ -243,12 +265,26 @@
               unit=""
               color="bg-purple-500/80"
             />
+             <MetricCard 
+              icon={<DollarSignIcon className="w-6 h-6 text-white"/>} 
+              title="Avg. Refill Amt" 
+              value={`R ${metrics.avgRefillAmount.toFixed(2)}`} 
+              unit=""
+              color="bg-orange-500/80"
+            />
             <MetricCard 
-              icon={<CalendarIcon className="w-6 h-6 text-white"/>} 
-              title="Monthly Cost" 
-              value={`R ${metrics.monthlyCost.toFixed(2)}`} 
-              unit="est."
-              color="bg-indigo-500/80"
+              icon={<FuelIcon className="w-6 h-6 text-white"/>} 
+              title="Avg. Cost / Litre" 
+              value={`R ${metrics.avgCostPerLiter.toFixed(2)}`} 
+              unit=""
+              color="bg-teal-500/80"
+            />
+            <MetricCard 
+              icon={<FuelIcon className="w-6 h-6 text-white"/>} 
+              title="Avg. Refill Vol" 
+              value={metrics.avgRefillLitres.toFixed(2)} 
+              unit="L"
+              color="bg-cyan-500/80"
             />
           </div>
         );
@@ -274,11 +310,10 @@
           </div>
       );
 
-      const AddReadingModal = ({ isOpen, onClose, onAdd, currentRange }) => {
+      const AddReadingModal = ({ isOpen, onClose, onAdd, latestOdometer }) => {
         const [date, setDate] = useState('');
-        const [oldRange, setOldRange] = useState('');
+        const [odometer, setOdometer] = useState('');
         const [amountSpent, setAmountSpent] = useState('');
-        const [newRange, setNewRange] = useState('');
         const [errors, setErrors] = useState({});
 
         useEffect(() => {
@@ -287,27 +322,24 @@
             today.setMinutes(today.getMinutes() - today.getTimezoneOffset());
             setDate(today.toISOString().split('T')[0]);
             
-            setOldRange(currentRange > 0 ? Math.round(currentRange).toString() : '0');
+            setOdometer('');
             setAmountSpent('');
-            setNewRange('');
             setErrors({});
           }
-        }, [isOpen, currentRange]);
+        }, [isOpen]);
 
         if (!isOpen) return null;
 
         const validate = () => {
           const newErrors = {};
-          const oldR = parseFloat(oldRange);
-          const newR = parseFloat(newRange);
+          const odo = parseFloat(odometer);
           const amount = parseFloat(amountSpent);
 
           if (!date) newErrors.date = 'Date is required';
-          if (!oldRange || isNaN(oldR) || oldR < 0) newErrors.oldRange = 'Must be a non-negative number';
+          if (!odometer || isNaN(odo) || odo <= 0) newErrors.odometer = 'Must be a positive number';
+          if (latestOdometer && !isNaN(odo) && odo <= latestOdometer) newErrors.odometer = `Must be greater than last reading (${latestOdometer} km)`;
           if (!amountSpent || isNaN(amount) || amount <= 0) newErrors.amountSpent = 'Must be a positive number';
-          if (!newRange || isNaN(newR) || newR <= 0) newErrors.newRange = 'Must be a positive number';
-          if (!isNaN(oldR) && !isNaN(newR) && newR <= oldR) newErrors.newRange = 'New range must be greater than old range';
-
+          
           setErrors(newErrors);
           return Object.keys(newErrors).length === 0;
         };
@@ -317,9 +349,8 @@
           if (validate()) {
             onAdd({
               date,
-              oldRange: parseFloat(oldRange),
+              odometer: parseFloat(odometer),
               amountSpent: parseFloat(amountSpent),
-              newRange: parseFloat(newRange),
             });
           }
         };
@@ -338,13 +369,13 @@
                   error={errors.date}
                 />
                 <InputField
-                  id="oldRange"
-                  label="Range Before Refill (km)"
+                  id="odometer"
+                  label="Current Odometer (km)"
                   type="number"
-                  value={oldRange}
-                  onChange={(e) => setOldRange(e.target.value)}
-                  error={errors.oldRange}
-                  placeholder="e.g., 50"
+                  value={odometer}
+                  onChange={(e) => setOdometer(e.target.value)}
+                  error={errors.odometer}
+                  placeholder="e.g., 85430"
                 />
                 <InputField
                   id="amountSpent"
@@ -355,15 +386,6 @@
                   error={errors.amountSpent}
                   placeholder="e.g., 800.00"
                   step="0.01"
-                />
-                <InputField
-                  id="newRange"
-                  label="Range After Refill (km)"
-                  type="number"
-                  value={newRange}
-                  onChange={(e) => setNewRange(e.target.value)}
-                  error={errors.newRange}
-                  placeholder="e.g., 750"
                 />
                 <div className="flex justify-end gap-4 pt-4">
                   <button
@@ -389,18 +411,11 @@
       // =============================================
       // APP.TSX
       // =============================================
-      const TimelineItem = ({ reading, kmDriven, efficiency, daysSinceLast, unit }) => {
+      const TimelineItem = ({ reading, kmDriven, daysSinceLast }) => {
         const date = new Date(reading.date);
         const formattedDate = date.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
         const costPerLiter = reading.litersLoaded > 0 ? reading.amountSpent / reading.litersLoaded : 0;
         
-        let displayEfficiency = null;
-        let displayUnit = null;
-        if (efficiency !== null) {
-            displayEfficiency = efficiency > 0 && unit === 'l/100km' ? (100 / efficiency).toFixed(1) : efficiency.toFixed(1);
-            displayUnit = unit === 'l/100km' ? 'l/100km' : 'km/l';
-        }
-
         return (
           <div className="relative pl-8 sm:pl-10 py-4">
             <div className="absolute left-4 sm:left-5 top-5 bottom-0 w-0.5 bg-gray-700"></div>
@@ -413,16 +428,15 @@
                 <span className="text-xl font-bold text-brand-blue-400">R {reading.amountSpent.toFixed(2)}</span>
               </div>
               <div className="grid grid-cols-2 gap-2 text-sm text-gray-300">
+                <p>Odometer: <span className="font-medium text-white">{reading.odometer.toFixed(0)} km</span></p>
                 <p>Liters Est: <span className="font-medium text-white">{reading.litersLoaded.toFixed(2)} L</span></p>
-                <p>Cost/Liter Est: <span className="font-medium text-white">{costPerLiter.toFixed(2)}</span></p>
-                <p>Range Before: <span className="font-medium text-white">{reading.oldRange.toFixed(0)} km</span></p>
-                <p>Range After: <span className="font-medium text-white">{reading.newRange.toFixed(0)} km</span></p>
-                {kmDriven !== null && efficiency !== null && (
-                  <div className="col-span-2 mt-2 pt-2 border-t border-gray-700 text-center">
-                      <p>Driven <span className="font-bold text-yellow-400">{kmDriven.toFixed(0)} km</span> in {daysSinceLast} days with <span className="font-bold text-yellow-400">{displayEfficiency} {displayUnit}</span> efficiency.</p>
-                  </div>
-                )}
+                <p>Cost/Liter Est: <span className="font-medium text-white">R {costPerLiter.toFixed(2)}</span></p>
               </div>
+              {kmDriven !== null && (
+                <div className="col-span-2 mt-2 pt-2 border-t border-gray-700 text-center">
+                    <p>Driven <span className="font-bold text-yellow-400">{kmDriven.toFixed(0)} km</span> in {daysSinceLast} days.</p>
+                </div>
+              )}
             </div>
           </div>
         );
@@ -458,7 +472,7 @@
           return (
               <div className="flex items-center gap-2 bg-gray-800 p-2 rounded-xl border border-gray-700 shadow-md">
                   <label htmlFor="fuelEfficiency" className="text-sm font-medium text-gray-300 whitespace-nowrap">
-                      Fuel Efficiency
+                      Efficiency
                   </label>
                   <input
                       id="fuelEfficiency"
@@ -482,6 +496,7 @@
           );
       };
 
+
       const App = () => {
         const [readings, setReadings] = useState([]);
         const [fuelEfficiency, setFuelEfficiency] = useState('17.2');
@@ -497,13 +512,12 @@
                 const parsed = JSON.parse(storedReadings);
                 if (Array.isArray(parsed)) {
                     const sanitizedReadings = parsed
-                      .filter(r => r && typeof r === 'object' && r.date)
+                      .filter(r => r && typeof r === 'object' && r.date && r.odometer)
                       .map(r => ({
                         id: r.id || new Date(r.date).toISOString(),
                         date: r.date,
-                        oldRange: Number(r.oldRange) || 0,
+                        odometer: Number(r.odometer) || 0,
                         amountSpent: Number(r.amountSpent) || 0,
-                        newRange: Number(r.newRange) || 0,
                         litersLoaded: Number(r.litersLoaded) || 0,
                       }))
                       .filter(r => !isNaN(new Date(r.date).getTime()));
@@ -518,9 +532,10 @@
 
             const storedUnit = localStorage.getItem('efficiencyUnit');
             if(storedUnit) setEfficiencyUnit(storedUnit);
+
           } catch (error) {
             console.error("Failed to load or parse data from localStorage", error);
-            localStorage.removeItem('fuelReadings');
+            localStorage.clear();
             setReadings([]);
           }
         }, []);
@@ -535,60 +550,86 @@
           }
         }, [readings, fuelEfficiency, efficiencyUnit]);
 
+        const chronoSortedReadings = useMemo(() => {
+            return [...readings].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        }, [readings]);
+
         const sortedReadings = useMemo(() => {
-          return [...readings].sort((a, b) => {
-            const timeA = new Date(a.date).getTime();
-            const timeB = new Date(b.date).getTime();
-            return sortOrder === 'desc' ? timeB - timeA : timeA - timeB;
-          });
-        }, [readings, sortOrder]);
+          return sortOrder === 'desc' ? [...chronoSortedReadings].reverse() : chronoSortedReadings;
+        }, [chronoSortedReadings, sortOrder]);
 
         const metrics = useMemo(() => {
-          if (readings.length === 0) {
-            return { dailyCost: 0, dailyUsage: 0, costPerKm: 0, monthlyCost: 0, estimatedDaysLeft: Infinity, calculatedCurrentRange: 0 };
+          const defaultMetrics = { dailyCost: 0, dailyUsage: 0, costPerKm: 0, monthlyCost: 0, estimatedDaysLeft: Infinity, calculatedCurrentRange: 0, avgCostPerLiter: 0, avgRefillLitres: 0, avgRefillAmount: 0, daysUntilService: Infinity, nextServiceOdometer: 0 };
+          if (chronoSortedReadings.length < 2) {
+            return defaultMetrics;
           }
         
-          const chronoSorted = [...readings].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-          const latestReading = chronoSorted[chronoSorted.length-1];
-
-          if (readings.length < 2) {
-            return { 
-                dailyCost: 0, 
-                dailyUsage: 0, 
-                costPerKm: 0, 
-                monthlyCost: 0, 
-                estimatedDaysLeft: Infinity, 
-                calculatedCurrentRange: latestReading.newRange 
-            };
-          }
-
-          let totalKMDriven = 0;
-          let totalDaysForConsumption = 0;
-
-          for (let i = 0; i < chronoSorted.length - 1; i++) {
-              const previous = chronoSorted[i];
-              const current = chronoSorted[i+1];
-              const kmDriven = previous.newRange - current.oldRange;
-              if (kmDriven > 0) {
-                  totalKMDriven += kmDriven;
-                  const timeDiff = new Date(current.date).getTime() - new Date(previous.date).getTime();
-                  totalDaysForConsumption += timeDiff / (1000 * 3600 * 24);
+          const intervals = [];
+          for (let i = 1; i < chronoSortedReadings.length; i++) {
+              const prev = chronoSortedReadings[i - 1];
+              const curr = chronoSortedReadings[i];
+              const distance = curr.odometer - prev.odometer;
+              const days = (new Date(curr.date).getTime() - new Date(prev.date).getTime()) / (1000 * 3600 * 24);
+              if (days > 0 && distance > 0) {
+                  intervals.push({ distance, days });
               }
           }
 
-          const totalRands = readings.reduce((sum, r) => sum + r.amountSpent, 0);
+          if (intervals.length === 0) {
+              return defaultMetrics;
+          }
           
-          const dailyUsage = totalDaysForConsumption > 0 ? totalKMDriven / totalDaysForConsumption : 0;
-          const costPerKm = totalKMDriven > 0 ? totalRands / totalKMDriven : 0;
+          // Historical calculations (using all intervals)
+          const totalKMDrivenOverall = intervals.reduce((sum, i) => sum + i.distance, 0);
+          const refills = chronoSortedReadings.slice(1);
+          const totalRands = refills.reduce((sum, r) => sum + r.amountSpent, 0);
+          const costPerKm = totalKMDrivenOverall > 0 ? totalRands / totalKMDrivenOverall : 0;
+
+          // Predictive calculations (using recent intervals)
+          const recentIntervals = intervals.slice(-5);
+          const recentTotalKm = recentIntervals.reduce((sum, i) => sum + i.distance, 0);
+          const recentTotalDays = recentIntervals.reduce((sum, i) => sum + i.days, 0);
+
+          const dailyUsage = recentTotalDays > 0 ? recentTotalKm / recentTotalDays : 0;
+          const avgKmPerTank = recentIntervals.length > 0 ? recentTotalKm / recentIntervals.length : 0;
+
+          // Current state calculations
+          const latestReading = chronoSortedReadings[chronoSortedReadings.length - 1];
+          const daysSinceLastReading = (new Date().getTime() - new Date(latestReading.date).getTime()) / (1000 * 3600 * 24);
+          const kmDrivenSinceLastRefill = dailyUsage * daysSinceLastReading;
+          
+          const calculatedCurrentRange = Math.max(0, avgKmPerTank - kmDrivenSinceLastRefill);
+          const estimatedDaysLeft = dailyUsage > 0 ? calculatedCurrentRange / dailyUsage : Infinity;
+          
+          // Other derived metrics
           const dailyCost = dailyUsage * costPerKm;
           const monthlyCost = dailyCost * 30.44;
 
-          const daysSinceLastReading = (new Date().getTime() - new Date(latestReading.date).getTime()) / (1000 * 3600 * 24);
-          const calculatedCurrentRange = Math.max(0, latestReading.newRange - (dailyUsage * daysSinceLastReading));
-          const estimatedDaysLeft = dailyUsage > 0 ? calculatedCurrentRange / dailyUsage : Infinity;
+          // Historical Averages
+          let avgCostPerLiter = 0;
+          let avgRefillLitres = 0;
+          let avgRefillAmount = 0;
+          const numberOfRefills = refills.length;
 
-          return { dailyCost, dailyUsage, costPerKm, monthlyCost, estimatedDaysLeft, calculatedCurrentRange };
-        }, [readings]);
+          if (numberOfRefills > 0) {
+              const totalLitres = refills.reduce((sum, r) => sum + r.litersLoaded, 0);
+              const validRefillsForCostPerLiter = refills.filter(r => r.litersLoaded > 0);
+              const totalCostPerLiterSum = validRefillsForCostPerLiter.reduce((sum, r) => sum + (r.amountSpent / r.litersLoaded), 0);
+              
+              avgCostPerLiter = validRefillsForCostPerLiter.length > 0 ? totalCostPerLiterSum / validRefillsForCostPerLiter.length : 0;
+              avgRefillLitres = totalLitres / numberOfRefills;
+              avgRefillAmount = totalRands / numberOfRefills;
+          }
+
+          // Service calculation
+          const serviceInterval = 15000;
+          const lastServiceOdometer = Math.floor(latestReading.odometer / serviceInterval) * serviceInterval;
+          const nextServiceOdometer = lastServiceOdometer + serviceInterval;
+          const kmUntilService = nextServiceOdometer - latestReading.odometer;
+          const daysUntilService = dailyUsage > 0 ? kmUntilService / dailyUsage : Infinity;
+
+          return { dailyCost, dailyUsage, costPerKm, monthlyCost, estimatedDaysLeft, calculatedCurrentRange, avgCostPerLiter, avgRefillLitres, avgRefillAmount, daysUntilService, nextServiceOdometer };
+        }, [chronoSortedReadings]);
 
         const handleAddReading = useCallback((newReading) => {
           const targetEfficiency = parseFloat(fuelEfficiency);
@@ -596,12 +637,19 @@
               alert("Please set a valid positive number for fuel efficiency before adding a reading.");
               return; 
           }
-          const rangeAdded = newReading.newRange - newReading.oldRange;
-          const liters = rangeAdded / targetEfficiency;
+          
+          let liters = 0;
+          if(chronoSortedReadings.length > 0) {
+              const lastReading = chronoSortedReadings[chronoSortedReadings.length-1];
+              const distanceDriven = newReading.odometer - lastReading.odometer;
+              if (distanceDriven > 0) {
+                  liters = distanceDriven / targetEfficiency;
+              }
+          }
 
           setReadings(prev => [...prev, { ...newReading, litersLoaded: liters, id: new Date().toISOString() }]);
           setIsModalOpen(false);
-        }, [fuelEfficiency]);
+        }, [fuelEfficiency, chronoSortedReadings]);
 
         const handleClearData = useCallback(() => {
           setIsConfirmModalOpen(true);
@@ -616,39 +664,33 @@
           setSortOrder(prev => (prev === 'desc' ? 'asc' : 'desc'));
         }, []);
         
-        const getTimelineData = (index) => {
-            let current, previous;
-            if (sortOrder === 'desc') {
-                if (index >= sortedReadings.length - 1) return { kmDriven: null, efficiency: null, daysSinceLast: null };
-                current = sortedReadings[index];
-                previous = sortedReadings[index + 1];
-            } else {
-                if (index === 0) return { kmDriven: null, efficiency: null, daysSinceLast: null };
-                current = sortedReadings[index];
-                previous = sortedReadings[index - 1];
-            }
-
-            const kmDriven = previous.newRange - current.oldRange;
-            const efficiency = previous.litersLoaded > 0 && kmDriven > 0 ? kmDriven / previous.litersLoaded : 0;
-            const timeDiff = new Date(current.date).getTime() - new Date(previous.date).getTime();
+        const getTimelineData = (reading) => {
+            const readingIndex = chronoSortedReadings.findIndex(r => r.id === reading.id);
+            if(readingIndex <= 0) return { kmDriven: null, daysSinceLast: null };
+            
+            const previous = chronoSortedReadings[readingIndex - 1];
+            const kmDriven = reading.odometer - previous.odometer;
+            const timeDiff = new Date(reading.date).getTime() - new Date(previous.date).getTime();
             const daysSinceLast = Math.round(timeDiff / (1000 * 3600 * 24));
             
-            return { kmDriven, efficiency, daysSinceLast };
+            return { kmDriven, daysSinceLast };
         };
 
         return (
           <div className="min-h-screen bg-gray-900 text-gray-100 font-sans p-4 sm:p-6">
             <div className="max-w-2xl mx-auto">
-              <header className="flex justify-between items-center mb-6 gap-2 sm:gap-4">
+              <header className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
                 <h1 className="text-2xl sm:text-3xl font-bold text-white flex-shrink-0">
                   <span className="text-brand-blue-400">Fuel</span> Tracker
                 </h1>
-                <FuelEfficiencySetting
-                    value={fuelEfficiency}
-                    onChange={setFuelEfficiency}
-                    unit={efficiencyUnit}
-                    onUnitChange={setEfficiencyUnit}
-                />
+                <div className="flex flex-wrap justify-center gap-2">
+                    <FuelEfficiencySetting
+                        value={fuelEfficiency}
+                        onChange={setFuelEfficiency}
+                        unit={efficiencyUnit}
+                        onUnitChange={setEfficiencyUnit}
+                    />
+                </div>
               </header>
 
               <main>
@@ -688,16 +730,14 @@
                   </div>
                 ) : (
                   <div>
-                    {sortedReadings.map((reading, index) => {
-                      const timelineData = getTimelineData(index);
+                    {sortedReadings.map((reading) => {
+                      const timelineData = getTimelineData(reading);
                       return (
                           <TimelineItem 
                             key={reading.id}
                             reading={reading} 
                             kmDriven={timelineData.kmDriven}
-                            efficiency={timelineData.efficiency}
                             daysSinceLast={timelineData.daysSinceLast}
-                            unit={efficiencyUnit}
                           />
                       );
                     })}
@@ -722,7 +762,7 @@
               isOpen={isModalOpen}
               onClose={() => setIsModalOpen(false)}
               onAdd={handleAddReading}
-              currentRange={metrics.calculatedCurrentRange}
+              latestOdometer={chronoSortedReadings.length > 0 ? chronoSortedReadings[chronoSortedReadings.length - 1].odometer : null}
             />
             <ConfirmModal
               isOpen={isConfirmModalOpen}
