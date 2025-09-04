@@ -1,11 +1,10 @@
-
 <!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Petrol Tracker</title>
+    <title>Fuel Tracker</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -489,7 +488,7 @@
 
         useEffect(() => {
           try {
-            const storedReadings = localStorage.getItem('petrolReadings');
+            const storedReadings = localStorage.getItem('fuelReadings');
             if (storedReadings) setReadings(JSON.parse(storedReadings));
             
             const storedEfficiency = localStorage.getItem('fuelEfficiency');
@@ -504,7 +503,7 @@
 
         useEffect(() => {
           try {
-            localStorage.setItem('petrolReadings', JSON.stringify(readings));
+            localStorage.setItem('fuelReadings', JSON.stringify(readings));
             localStorage.setItem('fuelEfficiency', fuelEfficiency);
             localStorage.setItem('efficiencyUnit', efficiencyUnit);
           } catch (error) {
@@ -607,7 +606,7 @@
             <div className="max-w-2xl mx-auto">
               <header className="flex justify-between items-center mb-6 gap-2 sm:gap-4">
                 <h1 className="text-2xl sm:text-3xl font-bold text-white flex-shrink-0">
-                  <span className="text-brand-blue-400">Petrol</span> Tracker
+                  <span className="text-brand-blue-400">Fuel</span> Tracker
                 </h1>
                 <FuelEfficiencySetting
                     value={fuelEfficiency}
@@ -615,19 +614,22 @@
                     unit={efficiencyUnit}
                     onUnitChange={setEfficiencyUnit}
                 />
-                <button
-                  onClick={() => setIsModalOpen(true)}
-                  className="bg-brand-blue-600 hover:bg-brand-blue-700 text-white font-bold py-2 px-3 sm:px-4 rounded-lg flex items-center gap-2 transition-transform transform hover:scale-105 shadow-lg flex-shrink-0"
-                  aria-label="Add new refill"
-                >
-                  <PlusIcon className="w-5 h-5" />
-                  <span className="hidden sm:inline">Add</span>
-                </button>
               </header>
 
               <main>
                 <MetricsDashboard metrics={metrics} />
                 
+                <div className="mt-6">
+                    <button
+                        onClick={() => setIsModalOpen(true)}
+                        className="w-full bg-brand-blue-600 hover:bg-brand-blue-700 text-white font-bold py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-transform transform hover:scale-105 shadow-lg"
+                        aria-label="Add new refill"
+                    >
+                        <PlusIcon className="w-5 h-5" />
+                        <span>Add New Refill</span>
+                    </button>
+                </div>
+
                 <div className="flex justify-between items-center mt-8 mb-4 border-b-2 border-gray-700 pb-2">
                   <h2 className="text-2xl font-semibold text-gray-200">
                     Refill History
@@ -647,7 +649,7 @@
                 {sortedReadings.length === 0 ? (
                   <div className="text-center py-10 bg-gray-800 rounded-lg">
                       <p className="text-gray-400">No readings yet.</p>
-                      <p className="text-gray-500 mt-2">Click the "Add" button to get started!</p>
+                      <p className="text-gray-500 mt-2">Click "Add New Refill" to get started!</p>
                   </div>
                 ) : (
                   <div>
@@ -673,7 +675,7 @@
                   <button
                     onClick={handleClearData}
                     className="text-gray-500 hover:text-red-500 hover:bg-gray-800 font-semibold py-2 px-4 rounded-lg flex items-center gap-2 transition-colors mx-auto"
-                    aria-label="Clear all petrol reading data"
+                    aria-label="Clear all fuel reading data"
                   >
                     <TrashIcon className="w-5 h-5" />
                     <span>Clear All Data</span>
