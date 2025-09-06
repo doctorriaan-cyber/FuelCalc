@@ -244,6 +244,20 @@
               color="bg-blue-500/80"
             />
             <MetricCard 
+              icon={<TrendingUpIcon className="w-6 h-6 text-white"/>} 
+              title="Max Monthly Kms" 
+              value={metrics.maxMonthlyKms.toFixed(0)} 
+              unit="km"
+              color="bg-purple-500/80"
+            />
+            <MetricCard 
+              icon={<RoadIcon className="w-6 h-6 text-white"/>} 
+              title="Avg Monthly Kms" 
+              value={metrics.avgMonthlyKms.toFixed(0)} 
+              unit="km"
+              color="bg-blue-500/80"
+            />
+            <MetricCard 
               icon={<WrenchIcon className="w-6 h-6 text-white"/>}
               title="Next Service In" 
               value={isFinite(metrics.daysUntilService) ? Math.floor(metrics.daysUntilService).toString() : '∞'} 
@@ -592,24 +606,35 @@
         }, [chronoSortedReadings, sortOrder]);
 
         const metrics = useMemo(() => {
-          const defaultMetrics = { dailyCost: 0, dailyUsage: 0, costPerKm: 0, monthlyCost: 0, estimatedDaysLeft: Infinity, calculatedCurrentRange: 0, avgCostPerLiter: 0, avgRefillLitres: 0, avgRefillAmount: 0, daysUntilService: Infinity, nextServiceOdometer: 0 };
+          const defaultMetrics = { dailyCost: 0, dailyUsage: 0, costPerKm: 0, monthlyCost: 0, estimatedDaysLeft: Infinity, calculatedCurrentRange: 0, avgCostPerLiter: 0, avgRefillLitres: 0, avgRefillAmount: 0, daysUntilService: Infinity, nextServiceOdometer: 0, maxMonthlyKms: 0, avgMonthlyKms: 0 };
           if (chronoSortedReadings.length < 2) {
             return defaultMetrics;
           }
         
           const intervals = [];
+          const monthlyKms = {};
           for (let i = 1; i < chronoSortedReadings.length; i++) {
               const prev = chronoSortedReadings[i - 1];
               const curr = chronoSortedReadings[i];
               const distance = curr.odometer - prev.odometer;
               const days = (new Date(curr.date).getTime() - new Date(prev.date).getTime()) / (1000 * 3600 * 24);
+              
+              if(distance > 0) {
+                const monthKey = new Date(curr.date).toISOString().slice(0, 7); // YYYY-MM
+                monthlyKms[monthKey] = (monthlyKms[monthKey] || 0) + distance;
+              }
+
               if (days > 0 && distance > 0) {
                   intervals.push({ distance, days });
               }
           }
 
+          const allMonthlyTotals = Object.values(monthlyKms);
+          const maxMonthlyKms = allMonthlyTotals.length > 0 ? Math.max(...allMonthlyTotals) : 0;
+          const avgMonthlyKms = allMonthlyTotals.length > 0 ? allMonthlyTotals.reduce((a, b) => a + b, 0) / allMonthlyTotals.length : 0;
+
           if (intervals.length === 0) {
-              return defaultMetrics;
+              return { ...defaultMetrics, maxMonthlyKms, avgMonthlyKms };
           }
           
           const totalKMDrivenOverall = intervals.reduce((sum, i) => sum + i.distance, 0);
@@ -655,7 +680,7 @@
           const kmUntilService = nextServiceOdometer - latestReading.odometer;
           const daysUntilService = dailyUsage > 0 ? kmUntilService / dailyUsage : Infinity;
 
-          return { dailyCost, dailyUsage, costPerKm, monthlyCost, estimatedDaysLeft, calculatedCurrentRange, avgCostPerLiter, avgRefillLitres, avgRefillAmount, daysUntilService, nextServiceOdometer };
+          return { dailyCost, dailyUsage, costPerKm, monthlyCost, estimatedDaysLeft, calculatedCurrentRange, avgCostPerLiter, avgRefillLitres, avgRefillAmount, daysUntilService, nextServiceOdometer, maxMonthlyKms, avgMonthlyKms };
         }, [chronoSortedReadings]);
         
         const recalculateLiters = useCallback((readingsList, efficiency) => {
